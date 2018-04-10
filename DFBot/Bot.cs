@@ -18,10 +18,9 @@ namespace DFBot
         private readonly CommandService _commands;
         public bool IsRunning { get; private set; }
         public ulong MyId { get { return _client.CurrentUser.Id; } }
-        internal Dictionary<string, SocketCommandContext> Contexts { get; private set; }
-        //ServerID -> {playerID -> [outpost]}
-        //internal Dictionary<string, Dictionary<string, List<string>>> Subscriptions { get; private set; }
-        //ServerID -> [outpostName / role]}
+        //ServerID -> Channel
+        internal Dictionary<string, IMessageChannel> NotificationChannels { get; set; }
+        //ServerID -> [outpostName / role]
         internal Dictionary<string, HashSet<string>> NotificationsSent { get; private set; }
 
         internal Bot()
@@ -42,9 +41,9 @@ namespace DFBot
 
             _client.JoinedGuild += JoinedNewGuild;
             _client.SetGameAsync("Use .help");
+            _client.Ready += BotReadyEvent;
 
-            Contexts = new Dictionary<string, SocketCommandContext>();
-            //Subscriptions = new Dictionary<string, Dictionary<string, List<string>>>();
+            NotificationChannels = new Dictionary<string, IMessageChannel>();
             NotificationsSent = new Dictionary<string, HashSet<string>>();
         }
         private static Task Log(LogMessage message)
@@ -74,7 +73,7 @@ namespace DFBot
 
         private async Task JoinedNewGuild(SocketGuild arg)
         {
-            SendJoinedMessage(arg);
+            await SendJoinedMessage(arg);
             await CreateSubscriptionRoles(arg);
         }
 
@@ -91,7 +90,7 @@ namespace DFBot
             }
             catch (HttpException)
             {
-                SendMessage("I don't have permissions to create the roles for the pings", arg);
+                await SendMessageAtDefaultChannel("I don't have permissions to create the roles for the pings", arg);
             }
         }
 
@@ -99,24 +98,24 @@ namespace DFBot
         {
             return arg.Roles.Any(r => r.Name == outpost);
         }
-        private void SendMessage(string message, SocketGuild arg)
+        private async Task SendMessageAtDefaultChannel(string message, SocketGuild arg)
         {
             SocketTextChannel myDefaultChannel = GetDefaultChannel(arg);
             EmbedBuilder builder = new EmbedBuilder();
             builder.Title = "Nail Yetis";
             builder.Description = message.ToString();
             if (myDefaultChannel != null)
-                myDefaultChannel.SendMessageAsync("", embed: builder.Build());
+                await myDefaultChannel.SendMessageAsync("", embed: builder.Build());
             else
                 Console.WriteLine("You don't have any write permissions at " + arg.Name);
         }
-        private void SendJoinedMessage(SocketGuild arg)
+        private async Task SendJoinedMessage(SocketGuild arg)
         {
             StringBuilder message = new StringBuilder("Thank you for adding <@").Append(_client.CurrentUser.Id).AppendLine("> to your server!");
             message.AppendLine("To set in which channel you wish to receive the notifications, enter '.setchannel' at that channel");
             message.AppendLine("For a detailed information concerning the commands, enter '.help'");
             message.AppendLine("Enjoy! :D");
-            SendMessage(message.ToString(), arg);
+            await SendMessageAtDefaultChannel(message.ToString(), arg);
         }
 
         private SocketTextChannel GetDefaultChannel(SocketGuild arg)
@@ -139,13 +138,22 @@ namespace DFBot
 
             await _client.LoginAsync(TokenType.Bot, ConfigurationManager.AppSettings["BotToken"]);
             await _client.StartAsync();
-
-            _client.Ready += BotReadyEvent;
         }
 
-        private async Task BotReadyEvent()
+        private Task BotReadyEvent()
         {
+            var contexts = ContextService.GetContexts();
+            foreach(var context in contexts)
+            {
+                IMessageChannel channel = _client.GetChannel(ulong.Parse(context.DefaultChannelId)) as IMessageChannel;
+                if (channel == null)
+                    throw new InvalidCastException("The default channel " + context.DefaultChannelId + " of " 
+                        + _client.GetGuild(ulong.Parse(context.ServerId)).Name + " was not a text channel");
+                //var toAdd = new ContextView(context.ServerId, channel);
+                NotificationChannels.Add(context.ServerId, channel);
+            }
             IsRunning = true;
+            return Task.CompletedTask;
         }
 
         private async Task InitCommands()
@@ -175,6 +183,11 @@ namespace DFBot
                 if (!result.IsSuccess && result.Error != CommandError.UnknownCommand)
                     await msg.Channel.SendMessageAsync(result.ErrorReason);
             }
+        }
+
+        internal SocketGuild GetGuild(string serverId)
+        {
+            return _client.GetGuild(ulong.Parse(serverId));
         }
     }
 }

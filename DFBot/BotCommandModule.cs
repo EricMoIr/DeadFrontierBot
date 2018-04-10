@@ -39,8 +39,9 @@ namespace DFBot
                 }
                 else
                 {
-                    await ReplyAsync("You must choose one of the following outposts");
-                    await PrintOutposts();
+                    List<Tuple<string, string>> message = new List<Tuple<string, string>>();
+                    message.Add(new Tuple<string, string>("You must choose one of the following outposts", PrintOutpostsMessage()));
+                    await ReplyAsync(message);
                 }
             }
         }
@@ -66,8 +67,9 @@ namespace DFBot
                 }
                 else
                 {
-                    await ReplyAsync("You must choose one of the following outposts");
-                    await PrintOutposts();
+                    List<Tuple<string, string>> message = new List<Tuple<string, string>>();
+                    message.Add(new Tuple<string, string>("You must choose one of the following outposts", PrintOutpostsMessage()));
+                    await ReplyAsync(message);
                 }
             }
         }
@@ -87,18 +89,21 @@ namespace DFBot
             await ReplyAsync(fields);
             await ReplyAsync(message.ToString());
         }
-
-
-        //Categories should be a thing later on
+        
         [Command("outposts")]
         [Summary("Prints all the outposts. Use: '.outposts''")]
         public async Task PrintOutposts()
+        {
+            await ReplyAsync(PrintOutpostsMessage());
+        }
+
+        private string PrintOutpostsMessage()
         {
             var outpostNames = OutpostService.GetAll();
             StringBuilder message = new StringBuilder();
             foreach (string outpost in outpostNames)
                 message.Append("- ").AppendLine(outpost);
-            await ReplyAsync(message.ToString());
+            return message.ToString();
         }
 
         protected override Task<IUserMessage> ReplyAsync(string message, bool isTTS = false, Embed embed = null, RequestOptions options = null)

@@ -38,11 +38,17 @@ namespace DFBot
         internal static void AddContext(SocketCommandContext context)
         {
             string id = context.Guild.Id + "";
-            if (bot.Contexts.ContainsKey(id))
-                bot.Contexts[id] = context;
+            //ContextView contextView = new ContextView(id);
+            //var channel = bot.NotificationChannels[contextView];
+            if (bot.NotificationChannels.ContainsKey(id))
+            {
+                bot.NotificationChannels[id] = context.Channel;
+                ContextService.UpdateContext(id, context.Channel.Id);
+            }
             else
             {
-                bot.Contexts.Add(id, context);
+                bot.NotificationChannels.Add(id, context.Channel);
+                ContextService.CreateChannel(id, context.Channel.Id);
                 bot.NotificationsSent.Add(id, new HashSet<string>());
             }
         }
@@ -53,10 +59,10 @@ namespace DFBot
         }
         private static async void NotifyServers()
         {
-            foreach (string serverId in bot.Contexts.Keys)
+            foreach (string serverId in bot.NotificationChannels.Keys)
             {
-                if (bot.Contexts.ContainsKey(serverId))
-                    await NotifyServer(bot.Contexts[serverId], INTERVAL);
+                if (bot.NotificationChannels.ContainsKey(serverId))
+                    await NotifyServer(serverId, INTERVAL);
             }
         }
 
@@ -68,23 +74,7 @@ namespace DFBot
                 SubscribeToOutpost(outpost, context);
             }
         }
-        /*internal static void SubscribeToOutpost(string outpost, SocketCommandContext context)
-        {
-            string guildId = context.Guild.Id + "";
-            string userId = context.User.Id + "";
 
-            if (!bot.Subscriptions.ContainsKey(guildId))
-            {
-                Dictionary<string, List<string>> subs = new Dictionary<string, List<string>>();
-                bot.Subscriptions.Add(guildId, subs);
-                bot.NotificationsSent.Add(guildId, BuildSubsSent());
-            }
-            if (!bot.Subscriptions[guildId].ContainsKey(userId))
-            {
-                bot.Subscriptions[guildId][userId] = new List<string>();
-            }
-            bot.Subscriptions[guildId][userId].Add(outpost);
-        }*/
         internal static async void SubscribeToOutpost(string outpost, SocketCommandContext context)
         {
             IRole role = context.Guild.Roles.Where(r => r.Name == outpost).FirstOrDefault();
@@ -120,7 +110,7 @@ namespace DFBot
             }
         }
 
-        internal static async Task<IRole> CreateRole(string name, SocketGuild server, ISocketMessageChannel channel = null)
+        internal static async Task<IRole> CreateRole(string name, SocketGuild server, IMessageChannel channel = null)
         {
             try
             {
@@ -170,22 +160,6 @@ namespace DFBot
             }
         }
 
-        /*internal static List<string> GetAllOutpostsSubscribedTo(SocketCommandContext context)
-        {
-            string guildId = context.Guild.Id + "";
-            string userId = context.User.Id + "";
-            if (!bot.Subscriptions.ContainsKey(guildId))
-            {
-                Dictionary<string, List<string>> subs = new Dictionary<string, List<string>>();
-                bot.Subscriptions.Add(guildId, subs);
-                bot.NotificationsSent.Add(guildId, BuildSubsSent());
-            }
-            if (!bot.Subscriptions[guildId].ContainsKey(userId))
-            {
-                bot.Subscriptions[guildId][userId] = new List<string>();
-            }
-            return bot.Subscriptions[guildId][userId];
-        }*/
         internal static List<string> GetAllOutpostsSubscribedTo(SocketCommandContext context)
         {
             List<string> ret = new List<string>();
@@ -200,32 +174,7 @@ namespace DFBot
             }
             return ret;
         }
-        /*private static Dictionary<string, HashSet<string>> BuildSubsSent()
-        {
-            Dictionary<string, HashSet<string>> subsSent = new Dictionary<string, HashSet<string>>();
-            subsSent.Add("nastyasHoldout", new HashSet<string>());
-            subsSent.Add("doggsStockade", new HashSet<string>());
-            subsSent.Add("secronomBunker", new HashSet<string>());
-            subsSent.Add("fortPastor", new HashSet<string>());
-            subsSent.Add("precinct13", new HashSet<string>());
-            return subsSent;
-        }*/
-        /*internal static void UnsubscribeFromOutpost(string outpost, SocketCommandContext context)
-        {
-            string guildId = context.Guild.Id + "";
-            string userId = context.User.Id + "";
-            if (!bot.Subscriptions.ContainsKey(guildId))
-            {
-                Dictionary<string, List<string>> subs = new Dictionary<string, List<string>>();
-                bot.Subscriptions.Add(guildId, subs);
-                bot.NotificationsSent.Add(guildId, BuildSubsSent());
-            }
-            if (!bot.Subscriptions[guildId].ContainsKey(userId))
-            {
-                bot.Subscriptions[guildId][userId] = new List<string>();
-            }
-            bot.Subscriptions[guildId][userId].Remove(outpost);
-        }*/
+
         internal static async void UnsubscribeFromOutpost(string outpost, SocketCommandContext context)
         {
             IRole role = context.Guild.Roles.Where(r => r.Name == outpost).FirstOrDefault();
@@ -252,14 +201,13 @@ namespace DFBot
             }
         }
 
-        internal static async Task NotifyServer(SocketCommandContext context, double interval = INTERVAL)
+        internal static async Task NotifyServer(string serverId, double interval = INTERVAL)
         {
             CheckBotExists();
-            string serverId = "" + context.Guild.Id;
             var outpostsWithOA = OutpostService.GetOutpostsWithOA();
             var outpostsWithoutOA = OutpostService.GetAll().Except(outpostsWithOA);
             RemoveFromNotificationsSent(outpostsWithoutOA);
-            await PrintOAs(outpostsWithOA, context);
+            await PrintOAs(outpostsWithOA, serverId);
         }
 
         private static void RemoveFromNotificationsSent(IEnumerable<string> outpostsWithoutOA)
@@ -279,65 +227,27 @@ namespace DFBot
                 throw new InvalidOperationException("The bot is not running yet");
         }
 
-        /*private static async Task PrintOAs(List<string> OAs, SocketCommandContext context)
-        {
-            if (OAs.Count == 0) return;
-            string serverId = "" + context.Guild.Id;
 
-            if (bot.Subscriptions.ContainsKey(serverId))
-            {
-                var subscriptions = bot.Subscriptions[serverId];
-                foreach (var subsOfUser in subscriptions)
-                {
-                    string message = "<@" + subsOfUser.Key + ">";
-                    EmbedBuilder builder = new EmbedBuilder();
-                    builder.Title = "OA Report";
-                    StringBuilder value = new StringBuilder();
-                    foreach (var outpostSubscribedTo in subsOfUser.Value)
-                    {
-                        if (OAs.Contains(outpostSubscribedTo))
-                        {
-                            if (!HasSentNotification(subsOfUser.Key, serverId, outpostSubscribedTo))
-                            {
-                                value.Append("- ").AppendLine(outpostSubscribedTo);
-                                bot.NotificationsSent[serverId][outpostSubscribedTo].Add(subsOfUser.Key);
-                            }
-                        }
-                    }
-                    if (value.Length > 0)
-                    {
-                        builder.Description = value.ToString();
-                        await context.Channel.SendMessageAsync(message, embed: builder.Build());
-                    }
-                }
-            }
-            else
-            {
-                return; //Nobody is subscribed to anything
-            }
-        }*/
-        private static async Task PrintOAs(List<string> OAs, SocketCommandContext context)
+        private static async Task PrintOAs(List<string> OAs, string serverId)
         {
             if (OAs.Count == 0) return;
-            string serverId = "" + context.Guild.Id;
             foreach (string outpost in OAs)
             {
                 if (HasSentNotification(outpost, serverId)) continue;
-                IRole role = context.Guild.Roles.Where(r => r.Name == outpost).FirstOrDefault();
+                var guild = bot.GetGuild(serverId);
+                var channel = bot.NotificationChannels[serverId];
+                IRole role = guild.Roles.Where(r => r.Name == outpost).FirstOrDefault();
                 if (role == null)
                 {
-                    role = await CreateRole(outpost, context.Guild, context.Channel);
+                    role = await CreateRole(outpost, guild, channel);
                 }
                 StringBuilder message = new StringBuilder();
                 message.Append(role.Mention).Append(" OA has just started!");
-                await context.Channel.SendMessageAsync(message.ToString());
+                await channel.SendMessageAsync(message.ToString());
                 bot.NotificationsSent[serverId].Add(outpost);
             }
         }
-        /*private static bool HasSentNotification(string id, string serverId, string outpostSubscribedTo)
-        {
-            return bot.NotificationsSent[serverId][outpostSubscribedTo].Contains(id);
-        }*/
+
         private static bool HasSentNotification(string outpost, string serverId)
         {
             return bot.NotificationsSent[serverId].Contains(outpost);

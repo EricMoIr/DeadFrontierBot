@@ -9,6 +9,7 @@ namespace Persistence
         private DFContext context;
         public DFRepository<Report> Reports { get; }
         public DFRepository<Outpost> Outposts { get; set; }
+        public DFRepository<Context> Contexts { get; set; }
 
         private bool disposed = false;
 
@@ -17,6 +18,7 @@ namespace Persistence
             context = new DFContext();
             Reports = new DFRepository<Report>(context);
             Outposts = new DFRepository<Outpost>(context);
+            Contexts = new DFRepository<Context>(context);
         }
 
         protected virtual void Dispose(bool disposing)

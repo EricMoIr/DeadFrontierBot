@@ -54,6 +54,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BackendRunner.cs" />
+    <Compile Include="ContextService.cs" />
     <Compile Include="OutpostService.cs" />
     <Compile Include="ReportService.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

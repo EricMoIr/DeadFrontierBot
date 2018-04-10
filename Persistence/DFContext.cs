@@ -8,6 +8,7 @@ namespace Persistence
         public DFContext() : base("name=DFBotContext") { }
         public DbSet<Report> Reports { get; set; }
         public DbSet<Outpost> Outposts { get; set; }
+        public DbSet<Context> Contexts { get; set; }
 
         protected override void OnModelCreating(DbModelBuilder modelBuilder)
         {

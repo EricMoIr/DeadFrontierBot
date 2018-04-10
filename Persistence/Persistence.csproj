@@ -51,6 +51,7 @@
   <ItemGroup>
     <Compile Include="DFContext.cs" />
     <Compile Include="DFRepository.cs" />
+    <Compile Include="Domain\Context.cs" />
     <Compile Include="Domain\DomainEntity.cs" />
     <Compile Include="Domain\Outpost.cs" />
     <Compile Include="Domain\Report.cs" />
